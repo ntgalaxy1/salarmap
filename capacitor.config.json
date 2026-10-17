@@ -1,0 +1,12 @@
+{
+  "appId": "ir.salar.map",
+  "appName": "سالار مپ",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#0f172a"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
