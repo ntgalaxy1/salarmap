@@ -15,6 +15,7 @@ import {
   toB64,
 } from "./crypto";
 import { commitFiles, getRepo, getViewer, normalizeRepo, utf8ToBase64 } from "./github";
+import { fetchAdminConfigFromCloud, publishAdminConfigToCloud } from "./cloudSync";
 import { KEYS, readJSON, removeKey, writeJSON } from "./storage";
 import { bust, localBase, remoteBase } from "./urls";
 
@@ -85,22 +86,19 @@ async function fetchConfig(base: string, timeoutMs = 4000): Promise<AdminConfig 
   }
 }
 
-/** زمان آخرین تغییر تنظیمات (برای انتخاب نسخه تازه‌تر) */
-function configTime(c: AdminConfig | null | undefined): number {
-  if (!c?.updatedAt) return 0;
-  const t = Date.parse(c.updatedAt);
-  return Number.isFinite(t) ? t : 0;
-}
-
 /**
- * انتخاب نسخه درست از حساب مدیر:
- *  - تغییرات ذخیره‌شده روی همین دستگاه (override) همیشه حفظ می‌شود و تا نسخه تازه‌تر روی سرور نیامده، اولویت دارد.
- *  - اگر روی دستگاه دیگری رمز تازه‌تری تنظیم شده باشد (updatedAt جدیدتر)، همان اعمال می‌شود.
- *  - نسخه همراه برنامه (admin.json داخل APK) فقط آخرین گزینه است تا رمز قدیمی برنگردد.
+ * اولویت خواندن تنظیمات مدیر:
+ *   ۱) تغییرات ذخیره‌شده روی همین دستگاه (سریع‌ترین و مطمئن‌ترین)
+ *   ۲) نسخهٔ ذخیره‌شده روی سرور ابری آنلاین (حتی اگر APK دوباره نصب شود، رمز جدید از بین نمی‌رود)
+ *   ۳) نسخهٔ منتشرشده در مخزن گیت‌هاب
+ *   ۴) نسخهٔ همراه برنامه / نسخهٔ داخلی
  */
 export async function loadAdminConfig(): Promise<{ config: AdminConfig; source: ConfigSource }> {
   const override = readJSON<AdminConfig | null>(KEYS.adminConfig, null);
-  const overrideValid = override !== null && isValidConfig(override);
+  if (override && isValidConfig(override)) return { config: override, source: "device" };
+
+  const cloud = await fetchAdminConfigFromCloud();
+  if (cloud) return { config: cloud, source: "remote" };
 
   const remote = remoteBase();
   const local = localBase();
@@ -108,16 +106,19 @@ export async function loadAdminConfig(): Promise<{ config: AdminConfig; source: 
     remote && remote !== local ? fetchConfig(remote) : Promise.resolve(null),
     fetchConfig(local),
   ]);
-
-  const remoteIsFreshCustom = r && !r.isDefault && configTime(r) > configTime(override);
-
-  if (!remoteIsFreshCustom && overrideValid) {
-    return { config: override, source: "device" };
-  }
   if (r) return { config: r, source: "remote" };
-  if (overrideValid) return { config: override, source: "device" };
   if (l) return { config: l, source: "local" };
   return { config: BUILTIN, source: "builtin" };
+}
+
+/**
+ * ذخیرهٔ تنظیمات مدیر به‌صورت دائمی:
+ *  - روی حافظهٔ همین دستگاه
+ *  - روی سرور ابری آنلاین (تا با نصب مجدد برنامه یا تغییر دستگاه، رمز جدید حفظ شود)
+ */
+export function saveAdminConfig(config: AdminConfig): void {
+  writeJSON(KEYS.adminConfig, config);
+  void publishAdminConfigToCloud(config);
 }
 
 /** بررسی نام کاربری و رمز؛ در صورت درستی، کلید رمزنگاری (یا true) برمی‌گردد */

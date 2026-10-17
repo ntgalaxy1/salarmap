@@ -6,12 +6,26 @@
  *  - تمام کاربران (روی هر گوشی یا مرورگر دیگری) به‌محض باز کردن برنامه — و حتی به‌صورت زنده در حین باز بودن برنامه —
  *    آخرین تغییرات منتشرشده توسط مدیر را می‌بینند.
  */
-import type { Place } from "../types";
+import type { AdminConfig, Place } from "../types";
 import { sanitizePlaces } from "./placesStore";
+
+/** اعتبارسنجی ساختار تنظیمات مدیر (بدون import از adminConfig برای جلوگیری از وابستگی حلقه‌ای) */
+function isValidAdminConfig(c: unknown): c is AdminConfig {
+  if (!c || typeof c !== "object") return false;
+  const o = c as Record<string, unknown>;
+  return (
+    typeof o.username === "string" &&
+    typeof o.salt === "string" &&
+    typeof o.verifier === "string" &&
+    typeof o.iterations === "number"
+  );
+}
 
 const KV_APP_KEY = "x5fie8bq";
 const KV_POINTER_KEY = "salarmap_live_v1";
+const KV_ADMIN_POINTER_KEY = "salarmap_admin_v1";
 const NTFY_TOPIC = "salarmap_tabriz_live_v1";
+const NTFY_ADMIN_TOPIC = "salarmap_admin_live_v1";
 const BYTEBIN_POST = "https://bytebin.lucko.me/post";
 const BYTEBIN_GET = "https://bytebin.lucko.me/";
 
@@ -173,4 +187,95 @@ export function subscribeToLiveCloudUpdates(onNewPlaces: (places: Place[]) => vo
     window.clearInterval(timer);
     if (es) es.close();
   };
+}
+
+// ─── ذخیره و بازیابی ابری تنظیمات حساب مدیر ─────────────────────────────────
+
+/** خواندن کلید اشاره‌گر تنظیمات مدیر از سرور (اصلی و پشتیبان) */
+async function getAdminPointerKey(): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://keyvalue.immanuel.co/api/KeyVal/GetValue/${KV_APP_KEY}/${KV_ADMIN_POINTER_KEY}?t=${Date.now()}`,
+      { cache: "no-store" }
+    );
+    if (res.ok) {
+      const text = (await res.text()).trim().replace(/^"+|"+$/g, "");
+      if (text && text !== "null" && /^[A-Za-z0-9_-]{5,}$/.test(text)) return text;
+    }
+  } catch {
+    /* ادامه به پشتیبان */
+  }
+
+  try {
+    const res = await fetch(`https://ntfy.sh/${NTFY_ADMIN_TOPIC}/json?poll=1&since=168h`, {
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const lines = (await res.text()).trim().split("\n").filter(Boolean);
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          const item = JSON.parse(lines[i]) as { event?: string; message?: string };
+          if (item.event === "message" && item.message && /^[A-Za-z0-9_-]{5,}$/.test(item.message.trim())) {
+            return item.message.trim();
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return null;
+}
+
+/**
+ * دریافت آخرین تنظیمات حساب مدیر از فضای ابری آنلاین
+ * (برای اینکه تغییر رمز مدیر هرگز — حتی با نصب مجدد APK یا پاک شدن داده‌ها — از بین نرود)
+ */
+export async function fetchAdminConfigFromCloud(): Promise<AdminConfig | null> {
+  const key = await getAdminPointerKey();
+  if (!key) return null;
+  try {
+    const res = await fetch(`${BYTEBIN_GET}${encodeURIComponent(key)}`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    const data: unknown = await res.json();
+    const cfg =
+      data && typeof data === "object" && !Array.isArray(data)
+        ? (data as { admin?: unknown }).admin ?? data
+        : null;
+    return isValidAdminConfig(cfg) ? (cfg as AdminConfig) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** ذخیره تنظیمات حساب مدیر روی فضای ابری آنلاین */
+export async function publishAdminConfigToCloud(config: AdminConfig): Promise<void> {
+  try {
+    const postRes = await fetch(BYTEBIN_POST, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ admin: config }),
+    });
+    if (!postRes.ok) return;
+    const { key } = (await postRes.json()) as { key?: string };
+    if (!key) return;
+
+    await Promise.allSettled([
+      fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${KV_APP_KEY}/${KV_ADMIN_POINTER_KEY}/${key}`, {
+        method: "POST",
+        body: "",
+      }),
+      fetch(`https://ntfy.sh/${NTFY_ADMIN_TOPIC}`, {
+        method: "POST",
+        body: key,
+      }),
+    ]);
+  } catch {
+    /* ذخیرهٔ ابری اختیاری است؛ ذخیرهٔ محلی کافی است */
+  }
 }

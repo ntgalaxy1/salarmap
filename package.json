@@ -12,6 +12,7 @@
     "@capacitor/android": "^8.5.2",
     "@capacitor/cli": "^8.5.2",
     "@capacitor/core": "^8.5.2",
+    "@capacitor/status-bar": "^8.0.4",
     "clsx": "2.1.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.48.0",
