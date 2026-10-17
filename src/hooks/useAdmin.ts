@@ -5,8 +5,10 @@ import {
   MIN_PASSWORD,
   MIN_USERNAME,
   buildConfig,
+  clearConfigOverride,
   commitAdminConfig,
   loadAdminConfig,
+  saveAdminConfig,
   saveConfigOverride,
   unlockToken,
   validateGitHub,
@@ -97,11 +99,11 @@ export function useAdmin() {
       }
       const next = await buildConfig(u, newPassword, session.github);
 
-      // همیشه نسخه جدید را روی همین دستگاه نگه می‌داریم تا با باز کردن مجدد برنامه، رمز قبلی برنگردد
-      saveConfigOverride(next);
+      // ۱) ذخیرهٔ دائمی روی حافظهٔ دستگاه + سرور ابری آنلاین (تا هرگز ریست نشود)
+      saveAdminConfig(next);
       setConfigSource("device");
 
-      // سپس در پس‌زمینه تلاش می‌کنیم روی سرور هم ثبت شود (برای سایر دستگاه‌ها)
+      // ۲) اگر به گیت‌هاب متصل است، در مخزن هم ذخیره شود
       if (session.github) {
         try {
           await commitAdminConfig(
@@ -111,8 +113,9 @@ export function useAdmin() {
             next,
             "admin: تغییر حساب مدیر [skip android]"
           );
+          setConfigSource("remote");
         } catch {
-          /* حتی اگر ثبت آنلاین انجام نشد، تغییر روی همین دستگاه معتبر و پایدار است */
+          /* ذخیرهٔ محلی و ابری انجام شده و کافی است */
         }
       }
 
@@ -141,8 +144,8 @@ export function useAdmin() {
           const key = await verifyPassword(cfg, session.username, currentPassword);
           if (key && typeof key !== "boolean") {
             const next = await withGitHub(cfg, key, link, token);
-            saveConfigOverride(next);
             await commitAdminConfig(token, link.repo, link.branch, next, "admin: اتصال پنل مدیریت به GitHub [skip android]");
+            clearConfigOverride();
             setConfig(next);
             setConfigSource("remote");
           }

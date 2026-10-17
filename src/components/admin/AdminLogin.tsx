@@ -4,7 +4,6 @@ import type { AdminConfig, AdminSession } from "../../types";
 import { describeError } from "../../lib/github";
 
 interface Props {
-  config: AdminConfig | null;
   loadConfig: () => Promise<AdminConfig>;
   onLogin: (username: string, password: string, remember: boolean) => Promise<AdminSession>;
   onSuccess: (s: AdminSession) => void;
@@ -20,7 +19,6 @@ export default function AdminLogin({ loadConfig, onLogin, onSuccess, onClose, on
   const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [failedAttempts, setFailedAttempts] = useState(0);
 
   useEffect(() => {
     void loadConfig().catch(() => undefined);
@@ -35,7 +33,6 @@ export default function AdminLogin({ loadConfig, onLogin, onSuccess, onClose, on
       onSuccess(s);
     } catch (err) {
       setError(describeError(err));
-      setFailedAttempts((n) => n + 1);
     } finally {
       setBusy(false);
     }
@@ -120,18 +117,9 @@ export default function AdminLogin({ loadConfig, onLogin, onSuccess, onClose, on
         </label>
 
         {error && (
-          <div className="mt-3 space-y-2">
-            <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-bold leading-6 text-red-700 ring-1 ring-red-100">
-              {error}
-            </p>
-            {failedAttempts >= 2 && (
-              <p className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-6 text-amber-900 ring-1 ring-amber-200">
-                اگر رمز را قبلاً تغییر داده‌اید ولی پذیرفته نمی‌شود، این نسخه ممکن است هنوز تنظیمات رمز قبلی را داشته باشد.
-                یک‌بار با نام کاربری <b dir="ltr">admin</b> و رمز <b dir="ltr">admin1234</b> وارد شوید و از بخش
-                «تنظیمات ← حساب مدیر» رمز دلخواه خود را دوباره ذخیره کنید.
-              </p>
-            )}
-          </div>
+          <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-bold leading-5 text-red-700 ring-1 ring-red-100">
+            {error}
+          </p>
         )}
 
         <button

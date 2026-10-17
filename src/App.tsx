@@ -236,7 +236,6 @@ export default function App() {
 
           {loginOpen && !admin.isAdmin && (
             <AdminLogin
-              config={admin.config}
               loadConfig={admin.loadConfig}
               onLogin={admin.login}
               onSuccess={(s) => {
