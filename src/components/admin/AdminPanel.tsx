@@ -211,49 +211,53 @@ export default function AdminPanel({
     <div className="flex h-dvh flex-col bg-slate-100">
       {/* هدر */}
       <header className="shrink-0 bg-slate-900 text-white shadow-lg">
-        <div className="flex items-center gap-3 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-emerald-400">
-            <ShieldCheck className="h-5 w-5" />
+        <div className="flex items-center gap-2.5 px-3 pb-2 pt-[max(0.6rem,env(safe-area-inset-top))] sm:px-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-emerald-400">
+            <ShieldCheck className="h-[18px] w-[18px]" />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="text-base font-extrabold leading-tight">مدیریت سالار مپ</h1>
-            <p className="truncate text-[11px] text-slate-300">
-              مدیر: <span dir="ltr">{session.username}</span>
+            <h1 className="truncate text-sm font-extrabold leading-tight sm:text-base">مدیریت سالار مپ</h1>
+            <p className="truncate text-[10px] text-slate-300 sm:text-[11px]">
+              <span dir="ltr">{session.username}</span>
               {" · "}
-              <span>{toFa(places.length)} مکان ثبت‌شده</span>
+              <span>{toFa(places.length)} مکان</span>
             </p>
           </div>
           <button
-            onClick={() => setCatalogOpen(true)}
-            className="flex h-9 items-center gap-1 rounded-xl bg-emerald-500 px-2.5 text-xs font-extrabold text-white shadow hover:bg-emerald-400"
-            title="گرفتن خروجی کاتالوگ تصویری (عکس)"
-          >
-            <Sparkles className="h-4 w-4" />
-            کاتالوگ عکس
-          </button>
-          <button
-            onClick={onGuide}
-            className="flex h-9 items-center gap-1 rounded-xl bg-white/10 px-2.5 text-xs font-bold text-slate-200 hover:bg-white/20"
-            title="راهنمای برنامه"
-          >
-            <BookOpen className="h-4 w-4" />
-            راهنما
-          </button>
-          <button
-            onClick={onViewAsUser}
-            className="flex h-9 items-center gap-1 rounded-xl bg-white/10 px-2.5 text-xs font-bold hover:bg-white/20"
-            title="مشاهده برنامه از دید کاربر"
-          >
-            <Eye className="h-4 w-4" />
-            نمای کاربر
-          </button>
-          <button
             onClick={onLogout}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20"
             title="خروج"
             aria-label="خروج"
           >
             <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* دکمه‌های عملیات در یک ردیف منظم و جداگانه (بدون در هم رفتگی روی گوشی) */}
+        <div className="grid grid-cols-3 gap-1.5 px-3 pb-2 sm:px-4">
+          <button
+            onClick={() => setCatalogOpen(true)}
+            className="flex h-9 items-center justify-center gap-1 rounded-xl bg-emerald-500 px-1 text-[11px] font-extrabold text-white shadow hover:bg-emerald-400"
+            title="گرفتن خروجی کاتالوگ تصویری (عکس)"
+          >
+            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">کاتالوگ عکس</span>
+          </button>
+          <button
+            onClick={onGuide}
+            className="flex h-9 items-center justify-center gap-1 rounded-xl bg-white/10 px-1 text-[11px] font-bold text-slate-200 hover:bg-white/20"
+            title="راهنمای برنامه"
+          >
+            <BookOpen className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">راهنما</span>
+          </button>
+          <button
+            onClick={onViewAsUser}
+            className="flex h-9 items-center justify-center gap-1 rounded-xl bg-white/10 px-1 text-[11px] font-bold hover:bg-white/20"
+            title="مشاهده برنامه از دید کاربر"
+          >
+            <Eye className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">نمای کاربر</span>
           </button>
         </div>
         <nav className="flex px-2">

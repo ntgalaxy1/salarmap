@@ -5,7 +5,6 @@ import {
   MIN_PASSWORD,
   MIN_USERNAME,
   buildConfig,
-  clearConfigOverride,
   commitAdminConfig,
   loadAdminConfig,
   saveConfigOverride,
@@ -97,6 +96,12 @@ export function useAdmin() {
         throw new Error("نمی‌توانید از حساب پیش‌فرض استفاده کنید؛ رمز دیگری انتخاب کنید");
       }
       const next = await buildConfig(u, newPassword, session.github);
+
+      // همیشه نسخه جدید را روی همین دستگاه نگه می‌داریم تا با باز کردن مجدد برنامه، رمز قبلی برنگردد
+      saveConfigOverride(next);
+      setConfigSource("device");
+
+      // سپس در پس‌زمینه تلاش می‌کنیم روی سرور هم ثبت شود (برای سایر دستگاه‌ها)
       if (session.github) {
         try {
           await commitAdminConfig(
@@ -106,16 +111,11 @@ export function useAdmin() {
             next,
             "admin: تغییر حساب مدیر [skip android]"
           );
-          clearConfigOverride();
-          setConfigSource("remote");
         } catch {
-          saveConfigOverride(next);
-          setConfigSource("device");
+          /* حتی اگر ثبت آنلاین انجام نشد، تغییر روی همین دستگاه معتبر و پایدار است */
         }
-      } else {
-        saveConfigOverride(next);
-        setConfigSource("device");
       }
+
       setConfig(next);
       persistSession({ ...session, username: next.username, isDefault: false });
     },
@@ -141,8 +141,8 @@ export function useAdmin() {
           const key = await verifyPassword(cfg, session.username, currentPassword);
           if (key && typeof key !== "boolean") {
             const next = await withGitHub(cfg, key, link, token);
+            saveConfigOverride(next);
             await commitAdminConfig(token, link.repo, link.branch, next, "admin: اتصال پنل مدیریت به GitHub [skip android]");
-            clearConfigOverride();
             setConfig(next);
             setConfigSource("remote");
           }
