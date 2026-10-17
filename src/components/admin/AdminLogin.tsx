@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Eye, EyeOff, KeyRound, Loader2, ShieldCheck, User, X } from "lucide-react";
 import type { AdminConfig, AdminSession } from "../../types";
-import { DEFAULT_CREDENTIALS } from "../../lib/adminConfig";
 import { describeError } from "../../lib/github";
 
 interface Props {
@@ -14,7 +13,7 @@ interface Props {
 }
 
 /** صفحه ورود مدیریت — نام کاربری و رمز عبور */
-export default function AdminLogin({ config, loadConfig, onLogin, onSuccess, onClose, onOpenGuide }: Props) {
+export default function AdminLogin({ loadConfig, onLogin, onSuccess, onClose, onOpenGuide }: Props) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
@@ -65,14 +64,6 @@ export default function AdminLogin({ config, loadConfig, onLogin, onSuccess, onC
             <p className="text-xs text-slate-500">فقط مدیر برنامه</p>
           </div>
         </div>
-
-        {config?.isDefault && (
-          <div className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-6 text-amber-900 ring-1 ring-amber-100">
-            <b>اولین ورود:</b> نام کاربری <code className="rounded bg-white px-1">{DEFAULT_CREDENTIALS.username}</code>{" "}
-            و رمز <code className="rounded bg-white px-1">{DEFAULT_CREDENTIALS.password}</code> — بعد از ورود حتماً در
-            «تنظیمات» آن را تغییر دهید.
-          </div>
-        )}
 
         <label className="mt-4 block text-xs font-bold text-slate-700">
           نام کاربری
