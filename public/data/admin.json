@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "username": "admin",
+  "salt": "UyaVUMQZrc5N0yZCxMZf8g==",
+  "iterations": 250000,
+  "verifier": "S6ImX1LUfkphhIl5OuxcYkghviAI0fvfgExgCxc3l3U=",
+  "isDefault": true,
+  "github": null
+}

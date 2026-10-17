@@ -1,0 +1,29 @@
+{
+  "name": "سالار مپ",
+  "short_name": "سالار مپ",
+  "description": "سالار مپ — نقشه تعاملی با نقشه گوگل، مکان‌ها، توضیحات و تصاویر",
+  "id": "salar-map",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "dir": "rtl",
+  "lang": "fa",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "categories": ["travel", "navigation"],
+  "icons": [
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
