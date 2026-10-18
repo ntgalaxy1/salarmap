@@ -1,0 +1,221 @@
+# ══════════════════════════════════════════════════════════════════════
+#   🏭 خط تولید خودکار «نقشه تبریز»
+#
+#   هر بار که کدی را تغییر داده و Commit کنید، GitHub به‌طور خودکار:
+#     🌐  نسخه وب را می‌سازد و روی GitHub Pages منتشر می‌کند
+#     🤖  فایل APK اندروید را می‌سازد و در بخش Releases قرار می‌دهد
+#
+#   هیچ نصب یا تنظیمی روی گوشی لازم نیست. فقط یک‌بار:
+#     Settings → Pages → Build and deployment → Source → «GitHub Actions»
+#
+#   لینک ثابت دانلود آخرین APK:
+#     https://github.com/<نام‌کاربری>/<نام‌ریپو>/releases/latest/download/tabriz-map.apk
+# ══════════════════════════════════════════════════════════════════════
+name: Build (Web + Android)
+
+on:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".gitignore"
+  workflow_dispatch: # دکمه «Run workflow» در تب Actions
+
+permissions:
+  contents: write # ساخت Release و ذخیره کلید امضا
+  pages: write # انتشار در GitHub Pages
+  id-token: write # لازم برای deploy-pages
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: 22
+  JAVA_VERSION: 21
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────
+  web:
+    name: 🌐 Web (GitHub Pages)
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🟢 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 📦 Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: 🏷️ Write build info
+        run: bash .github/scripts/write-build-info.sh
+
+      - name: 🔨 Build website
+        run: npm run build
+
+      - name: ⬆️ Upload website as artifact (always available)
+        uses: actions/upload-artifact@v4
+        with:
+          name: website-dist
+          path: dist
+          retention-days: 14
+
+      - name: 🔎 Is GitHub Pages enabled?
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${GITHUB_REPOSITORY}/pages" >/dev/null 2>&1; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "✔ GitHub Pages is enabled"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### ⚠️ GitHub Pages هنوز فعال نیست (فقط یک‌بار لازم است)"
+              echo ""
+              echo "1. به **Settings → Pages** بروید"
+              echo "2. در بخش **Build and deployment → Source** گزینه **GitHub Actions** را انتخاب کنید"
+              echo "3. برگردید به تب **Actions** و روی **Run workflow** بزنید (یا یک تغییر جدید Commit کنید)"
+              echo ""
+              echo "فایل APK اندروید مستقل از این تنظیم ساخته می‌شود ✅"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: ⚙️ Configure Pages
+        if: steps.pages.outputs.enabled == 'true'
+        uses: actions/configure-pages@v5
+
+      - name: ⬆️ Upload Pages artifact
+        if: steps.pages.outputs.enabled == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: 🚀 Deploy to GitHub Pages
+        if: steps.pages.outputs.enabled == 'true'
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: 📝 Summary
+        if: steps.pages.outputs.enabled == 'true'
+        run: |
+          {
+            echo "### 🌐 نسخه وب منتشر شد"
+            echo ""
+            echo "🔗 ${{ steps.deploy.outputs.page_url }}"
+            echo ""
+            echo "این آدرس را در Chrome اندروید باز کنید → منو → «افزودن به صفحه اصلی» تا مثل یک اپ نصب شود."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ────────────────────────────────────────────────────────────────────
+  android:
+    name: 🤖 Android (APK)
+    runs-on: ubuntu-latest
+    # انتشار محتوا از پنل مدیر، پیام Commit را با «[skip android]» علامت می‌زند
+    # (اپ اندروید داده جدید را خودش دریافت می‌کند؛ نیازی به APK جدید نیست)
+    if: ${{ !contains(github.event.head_commit.message, '[skip android]') }}
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🟢 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: ☕ Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: 🤖 Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          log-accepted-android-sdk-licenses: false
+
+      - name: 🔑 Prepare signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: bash .github/scripts/prepare-keystore.sh
+
+      - name: 📦 Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: 🏷️ Write build info
+        run: bash .github/scripts/write-build-info.sh
+
+      - name: 🔨 Build website
+        run: npm run build
+
+      - name: 📱 Create Android project (Capacitor)
+        run: |
+          if [ ! -d android ]; then
+            npx cap add android
+          else
+            echo "android/ folder already exists in the repository — using it"
+          fi
+
+      - name: 🎨 Configure Android project (permissions, version, icon)
+        run: bash .github/scripts/configure-android.sh
+
+      - name: 🔄 Copy web files into the Android project
+        run: npx cap sync android
+
+      - name: 🏗️ Gradle build (release)
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease bundleRelease --no-daemon --quiet
+
+      - name: ✍️ Sign APK & AAB
+        run: bash .github/scripts/sign-android.sh
+
+      - name: ⬆️ Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: salar-map-android
+          path: output/*
+          retention-days: 30
+
+      - name: 🚀 Publish to Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: نسخه 1.0.${{ github.run_number }}
+          body: |
+            ## 📱 سالار مپ — بیلد شماره ${{ github.run_number }}
+
+            | فایل | کاربرد |
+            |---|---|
+            | **salar-map.apk** | نصب مستقیم روی گوشی اندروید / انتشار در بازار و مایکت |
+            | **salar-map.aab** | انتشار در گوگل‌پلی |
+
+            🔗 لینک ثابت آخرین نسخه: `https://github.com/${{ github.repository }}/releases/latest/download/salar-map.apk`
+
+            📝 تغییرات: ${{ github.event.head_commit.message || 'اجرای دستی' }}
+          files: |
+            output/salar-map.apk
+            output/salar-map.aab
+
+      - name: 📝 Summary
+        run: |
+          {
+            echo "### ✅ فایل APK سالار مپ آماده شد — نسخه 1.0.${GITHUB_RUN_NUMBER}"
+            echo ""
+            echo "📥 دانلود مستقیم: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/salar-map.apk"
+            echo ""
+            echo "📚 همه نسخه‌ها: https://github.com/${GITHUB_REPOSITORY}/releases"
+            echo ""
+            echo "این لینک را در گوشی باز کنید، فایل را دانلود و نصب کنید. نسخه جدید روی نسخه قبلی نصب می‌شود."
+          } >> "$GITHUB_STEP_SUMMARY"
