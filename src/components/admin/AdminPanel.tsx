@@ -11,7 +11,6 @@ import {
   LogOut,
   Map as MapIcon,
   MapPin,
-  MoreVertical,
   Pencil,
   Plus,
   Search,
@@ -22,7 +21,7 @@ import {
   UploadCloud,
   X,
 } from "lucide-react";
-import type { AdminPrefs, EditorState, FlyTarget, LayerKey, PickRequest, Place } from "../../types";
+import type { AdminPrefs, EditorState, FlyTarget, LayerKey, MarkerKind, PickRequest, Place } from "../../types";
 import type { AdminApi } from "../../hooks/useAdmin";
 import type { PlacesApi } from "../../hooks/usePlaces";
 import { DEFAULT_ZOOM, TABRIZ_CENTER } from "../../data/mapConfig";
@@ -36,6 +35,7 @@ import FloatingControls from "../FloatingControls";
 import LayerMenu from "../LayerMenu";
 import PlaceSheet from "../PlaceSheet";
 import KindBadge from "../KindBadge";
+import KindFilter from "../KindFilter";
 import PlaceEditor from "./PlaceEditor";
 import LocationPicker from "./LocationPicker";
 import AdminSettingsTab from "./AdminSettingsTab";
@@ -83,12 +83,12 @@ export default function AdminPanel({
   const session = admin.session!;
   const [tab, setTab] = useState<Tab>("places");
   const [query, setQuery] = useState("");
+  const [kindFilter, setKindFilter] = useState<MarkerKind | "all">("all");
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [picker, setPicker] = useState<PickRequest | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
-  const [adminMenu, setAdminMenu] = useState(false);
 
   // نقشه
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -98,8 +98,8 @@ export default function AdminPanel({
 
   const places = store.places;
   const filtered = useMemo(
-    () => places.filter((p) => matchesPlace(p, query)),
-    [places, query]
+    () => places.filter((p) => (kindFilter === "all" || p.kind === kindFilter) && matchesPlace(p, query)),
+    [places, kindFilter, query]
   );
   const selected = places.find((p) => p.id === selectedId) ?? null;
   const rawOf = (id: string) => store.rawPlaces.find((p) => p.id === id) ?? null;
@@ -209,80 +209,54 @@ export default function AdminPanel({
 
   return (
     <div className="flex h-dvh flex-col bg-slate-100">
-      {/* هدر فشرده */}
-      <header className="relative z-40 shrink-0 bg-slate-900 text-white shadow-md">
-        {adminMenu && (
-          <div className="fixed inset-0 z-0" onClick={() => setAdminMenu(false)} />
-        )}
-        <div className="relative z-10 flex items-center gap-2 px-3 pb-1.5 pt-[max(0.5rem,env(safe-area-inset-top))]">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10 text-emerald-400">
-            <ShieldCheck className="h-4 w-4" />
+      {/* هدر */}
+      <header className="shrink-0 bg-slate-900 text-white shadow-lg">
+        <div className="flex items-center gap-2 px-3 pb-2 safe-top sm:gap-3 sm:px-4">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-emerald-400">
+            <ShieldCheck className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-[13px] font-extrabold leading-tight">مدیریت سالار مپ</h1>
-            <p className="truncate text-[10px] leading-4 text-slate-300">
+            <h1 className="truncate text-[15px] font-extrabold leading-tight sm:text-base">مدیریت سالار مپ</h1>
+            <p className="truncate text-[11px] text-slate-300">
               <span dir="ltr">{session.username}</span>
               {" · "}
-              <span>{toFa(places.length)} مکان</span>
+              {toFa(places.length)} مکان
             </p>
           </div>
           <button
+            onClick={() => setCatalogOpen(true)}
+            className="flex h-9 shrink-0 items-center gap-1 rounded-xl bg-emerald-500 px-2.5 text-[11px] font-extrabold text-white shadow hover:bg-emerald-400 sm:text-xs"
+            title="گرفتن خروجی کاتالوگ تصویری (عکس)"
+          >
+            <Sparkles className="h-4 w-4" />
+            <span className="hidden sm:inline">کاتالوگ</span>
+          </button>
+          <button
+            onClick={onGuide}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-slate-200 hover:bg-white/20"
+            title="راهنمای برنامه"
+            aria-label="راهنمای برنامه"
+          >
+            <BookOpen className="h-4 w-4" />
+          </button>
+          <button
             onClick={onViewAsUser}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20"
-            title="نمای کاربر"
-            aria-label="نمای کاربر"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20"
+            title="مشاهده برنامه از دید کاربر"
+            aria-label="مشاهده برنامه از دید کاربر"
           >
             <Eye className="h-4 w-4" />
           </button>
-          <div className="relative">
-            <button
-              onClick={() => setAdminMenu((v) => !v)}
-              className={cn(
-                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg hover:bg-white/20",
-                adminMenu ? "bg-white/20" : "bg-white/10"
-              )}
-              title="بیشتر"
-              aria-label="بیشتر"
-            >
-              <MoreVertical className="h-4 w-4" />
-            </button>
-            {adminMenu && (
-              <div className="absolute left-0 top-full z-30 mt-1.5 w-56 overflow-hidden rounded-xl bg-white text-slate-800 shadow-2xl ring-1 ring-slate-900/10 animate-pop-in">
-                <button
-                  onClick={() => {
-                    setAdminMenu(false);
-                    setCatalogOpen(true);
-                  }}
-                  className="flex w-full items-center gap-2.5 px-4 py-3 text-right text-xs font-bold hover:bg-slate-50"
-                >
-                  <Sparkles className="h-4 w-4 text-emerald-600" />
-                  کاتالوگ عکس
-                </button>
-                <button
-                  onClick={() => {
-                    setAdminMenu(false);
-                    onGuide();
-                  }}
-                  className="flex w-full items-center gap-2.5 px-4 py-3 text-right text-xs font-bold hover:bg-slate-50"
-                >
-                  <BookOpen className="h-4 w-4 text-slate-500" />
-                  راهنما
-                </button>
-                <button
-                  onClick={() => {
-                    setAdminMenu(false);
-                    onLogout();
-                  }}
-                  className="flex w-full items-center gap-2.5 border-t border-slate-100 px-4 py-3 text-right text-xs font-bold text-red-600 hover:bg-red-50"
-                >
-                  <LogOut className="h-4 w-4" />
-                  خروج
-                </button>
-              </div>
-            )}
-          </div>
+          <button
+            onClick={onLogout}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 hover:bg-white/20"
+            title="خروج"
+            aria-label="خروج"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
-        <nav className="relative z-10 flex px-2">
+        <nav className="flex px-2">
           {(
             [
               { key: "places", label: "مکان‌ها", icon: <List className="h-4 w-4" /> },
@@ -294,13 +268,13 @@ export default function AdminPanel({
               key={t.key}
               onClick={() => setTab(t.key)}
               className={cn(
-                "flex flex-1 items-center justify-center gap-1.5 border-b-2 px-2 py-2 text-xs font-bold transition",
+                "flex flex-1 items-center justify-center gap-1.5 border-b-2 px-2 py-2.5 text-xs font-bold transition",
                 tab === t.key ? "border-emerald-400 text-white" : "border-transparent text-slate-400 hover:text-white"
               )}
             >
               {t.icon}
               {t.label}
-              {t.key === "settings" && session.isDefault && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />}
+              {t.key === "settings" && session.isDefault && <span className="h-2 w-2 rounded-full bg-amber-400" />}
             </button>
           ))}
         </nav>
@@ -310,25 +284,32 @@ export default function AdminPanel({
       <main className="relative flex-1 overflow-hidden">
         {tab === "places" && (
           <div className="flex h-full flex-col">
-            {/* جستجو (تک‌ردیفی و فشرده) */}
-            <div className="shrink-0 bg-white px-3 py-2 shadow-sm">
-              <div className="flex items-center gap-1.5 rounded-xl bg-slate-100 px-2.5 focus-within:ring-2 focus-within:ring-slate-900/20">
+            {/* جستجو و فیلتر */}
+            <div className="shrink-0 space-y-2 bg-white px-4 py-3 shadow-sm">
+              <div className="flex items-center gap-2 rounded-xl bg-slate-100 px-3 focus-within:ring-2 focus-within:ring-slate-900/20">
                 <Search className="h-4 w-4 shrink-0 text-slate-400" />
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="جستجو در مکان‌ها…"
-                  className="h-9 w-full min-w-0 bg-transparent text-[13px] outline-none placeholder:text-slate-400"
+                  placeholder="جستجو برای ویرایش… (نام، توضیح، آدرس)"
+                  className="h-10 w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
                 />
-                {query ? (
-                  <button onClick={() => setQuery("")} className="shrink-0 rounded-full p-1 text-slate-400 hover:bg-slate-200" aria-label="پاک کردن">
-                    <X className="h-3.5 w-3.5" />
+                {query && (
+                  <button onClick={() => setQuery("")} className="rounded-full p-1 text-slate-400 hover:bg-slate-200" aria-label="پاک کردن">
+                    <X className="h-4 w-4" />
                   </button>
-                ) : (
-                  <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-slate-500">
-                    {toFa(filtered.length)}
-                  </span>
                 )}
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <KindFilter places={places} value={kindFilter} onChange={setKindFilter} />
+                <button
+                  type="button"
+                  onClick={() => setCatalogOpen(true)}
+                  className="flex shrink-0 items-center gap-1 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-extrabold text-white shadow hover:bg-slate-800"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                  خروجی کاتالوگ
+                </button>
               </div>
             </div>
 
@@ -446,42 +427,63 @@ export default function AdminPanel({
 
       {/* نوار ثابت پایین صفحه مدیریت با دکمه «تأیید و انتشار نهایی» */}
       {!overlay && (
-        <footer className="shrink-0 border-t border-slate-200 bg-white px-3 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-6px_20px_rgba(15,23,42,0.06)]">
+        <footer className="shrink-0 border-t border-slate-200/90 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur">
           {store.draftVolatile && (
-            <p className="mb-1 flex items-center gap-1 text-[10px] font-bold text-amber-700">
-              <AlertTriangle className="h-3 w-3 shrink-0" />
-              حافظه محدود است؛ تغییرات را منتشر کنید.
+            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold text-amber-700">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              حافظه مرورگر محدود است؛ لطفاً پس از اتمام ویرایش، تغییرات را منتشر کنید.
             </p>
           )}
-          <div className="mx-auto flex max-w-2xl items-center gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-1.5">
-              <span
-                className={cn(
-                  "h-2 w-2 shrink-0 rounded-full",
-                  hasPendingChanges ? "bg-amber-500 ring-4 ring-amber-500/15" : "bg-emerald-500"
-                )}
-              />
-              <p className="min-w-0 truncate text-[11px] font-bold text-slate-700">
-                {hasPendingChanges
-                  ? `${toFa(store.changeCount)} تغییر ذخیره‌شده — منتشر نشده`
-                  : "همه تغییرات منتشر شده است"}
-              </p>
+          <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              {hasPendingChanges ? (
+                <div className="flex items-center gap-2">
+                  <span className="flex h-2.5 w-2.5 shrink-0 rounded-full bg-amber-500 ring-4 ring-amber-500/20" />
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-extrabold text-slate-900">
+                      {toFa(store.changeCount)} تغییر ذخیره شده (در انتظار انتشار)
+                    </p>
+                    <p className="truncate text-[11px] text-slate-500">
+                      تا زمان تأیید نهایی، تغییرات برای کاربران نمایش داده نمی‌شود
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                    <Check className="h-3.5 w-3.5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-bold text-slate-700">
+                      همه تغییرات منتشر شده است
+                    </p>
+                    <p className="truncate text-[11px] text-slate-400">
+                      ابتدا مکان‌ها را ویرایش و ذخیره کنید، سپس انتشار نهایی را بزنید
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
+
             <button
               type="button"
               onClick={() => setConfirmPublishOpen(true)}
               disabled={!hasPendingChanges || publishing}
               className={cn(
-                "flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl px-3 text-[11px] font-extrabold transition-all",
+                "relative flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl px-5 text-xs font-extrabold transition-all",
                 hasPendingChanges
-                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/25 active:scale-[0.98]"
-                  : "cursor-not-allowed bg-slate-100 text-slate-400"
+                  ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 hover:bg-emerald-500 active:scale-[0.98]"
+                  : "bg-slate-100 text-slate-400 cursor-not-allowed"
               )}
             >
-              {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
-              <span className="whitespace-nowrap">تأیید و انتشار نهایی</span>
+              {publishing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <UploadCloud className="h-4 w-4" />
+              )}
+              <span>تأیید و انتشار نهایی</span>
               {hasPendingChanges && !publishing && (
-                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-white/25 px-1 text-[10px] font-extrabold">
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white/25 px-1.5 text-[11px] font-extrabold text-white">
                   {toFa(store.changeCount)}
                 </span>
               )}
@@ -572,7 +574,8 @@ export default function AdminPanel({
       {catalogOpen && (
         <CatalogModal
           places={filtered.length > 0 ? filtered : places}
-                    onClose={() => setCatalogOpen(false)}
+          initialFilter={kindFilter}
+          onClose={() => setCatalogOpen(false)}
           onToast={onToast}
         />
       )}

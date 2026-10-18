@@ -15,6 +15,7 @@ import {
   toB64,
 } from "./crypto";
 import { commitFiles, getRepo, getViewer, normalizeRepo, utf8ToBase64 } from "./github";
+import { fetchAdminConfigFromCloud, publishAdminConfigToCloud } from "./cloudSync";
 import { KEYS, readJSON, removeKey, writeJSON } from "./storage";
 import { bust, localBase, remoteBase } from "./urls";
 
@@ -70,7 +71,7 @@ export function isValidConfig(c: unknown): c is AdminConfig {
   );
 }
 
-async function fetchConfig(base: string, timeoutMs = 4000): Promise<AdminConfig | null> {
+async function fetchConfig(base: string, timeoutMs = 2500): Promise<AdminConfig | null> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   try {
@@ -85,39 +86,52 @@ async function fetchConfig(base: string, timeoutMs = 4000): Promise<AdminConfig 
   }
 }
 
-/** زمان آخرین تغییر تنظیمات (برای انتخاب نسخه تازه‌تر) */
-function configTime(c: AdminConfig | null | undefined): number {
-  if (!c?.updatedAt) return 0;
-  const t = Date.parse(c.updatedAt);
-  return Number.isFinite(t) ? t : 0;
-}
-
 /**
- * انتخاب نسخه درست از حساب مدیر:
- *  - تغییرات ذخیره‌شده روی همین دستگاه (override) همیشه حفظ می‌شود و تا نسخه تازه‌تر روی سرور نیامده، اولویت دارد.
- *  - اگر روی دستگاه دیگری رمز تازه‌تری تنظیم شده باشد (updatedAt جدیدتر)، همان اعمال می‌شود.
- *  - نسخه همراه برنامه (admin.json داخل APK) فقط آخرین گزینه است تا رمز قدیمی برنگردد.
+ * اولویت خواندن تنظیمات مدیر:
+ *   ۱) تغییرات ذخیره‌شده روی همین دستگاه (سریع‌ترین و مطمئن‌ترین)
+ *   ۲) نسخهٔ ذخیره‌شده روی سرور ابری آنلاین (حتی اگر APK دوباره نصب شود، رمز جدید از بین نمی‌رود)
+ *   ۳) نسخهٔ منتشرشده در مخزن گیت‌هاب
+ *   ۴) نسخهٔ همراه برنامه / نسخهٔ داخلی
  */
 export async function loadAdminConfig(): Promise<{ config: AdminConfig; source: ConfigSource }> {
+  // ۱) حافظهٔ همین دستگاه (فوری — بدون اینترنت هم کار می‌کند)
   const override = readJSON<AdminConfig | null>(KEYS.adminConfig, null);
-  const overrideValid = override !== null && isValidConfig(override);
+  if (override && isValidConfig(override)) return { config: override, source: "device" };
 
   const remote = remoteBase();
   const local = localBase();
-  const [r, l] = await Promise.all([
-    remote && remote !== local ? fetchConfig(remote) : Promise.resolve(null),
-    fetchConfig(local),
+
+  // ۲ و ۳) سرور ابری آنلاین و نسخهٔ مخزن — به‌صورت موازی و با سقف زمانی، تا صفحه ورود هرگز هنگ نکند
+  const withTimeout = <T,>(p: Promise<T>, ms: number) =>
+    Promise.race([p, new Promise<null>((resolve) => setTimeout(() => resolve(null), ms))]);
+
+  const [cloud, repo] = await Promise.all([
+    withTimeout(fetchAdminConfigFromCloud(), 1800),
+    withTimeout(
+      (async () => {
+        const [r, l] = await Promise.all([
+          remote && remote !== local ? fetchConfig(remote) : Promise.resolve(null),
+          fetchConfig(local),
+        ]);
+        return r ?? l;
+      })(),
+      2500
+    ),
   ]);
 
-  const remoteIsFreshCustom = r && !r.isDefault && configTime(r) > configTime(override);
-
-  if (!remoteIsFreshCustom && overrideValid) {
-    return { config: override, source: "device" };
-  }
-  if (r) return { config: r, source: "remote" };
-  if (overrideValid) return { config: override, source: "device" };
-  if (l) return { config: l, source: "local" };
+  if (cloud) return { config: cloud, source: "remote" };
+  if (repo) return { config: repo, source: repo === BUILTIN ? "builtin" : "remote" };
   return { config: BUILTIN, source: "builtin" };
+}
+
+/**
+ * ذخیرهٔ تنظیمات مدیر به‌صورت دائمی:
+ *  - روی حافظهٔ همین دستگاه
+ *  - روی سرور ابری آنلاین (تا با نصب مجدد برنامه یا تغییر دستگاه، رمز جدید حفظ شود)
+ */
+export function saveAdminConfig(config: AdminConfig): void {
+  writeJSON(KEYS.adminConfig, config);
+  void publishAdminConfigToCloud(config);
 }
 
 /** بررسی نام کاربری و رمز؛ در صورت درستی، کلید رمزنگاری (یا true) برمی‌گردد */
@@ -141,19 +155,11 @@ export async function verifyPassword(
     return true;
   }
 
-  // رمزهایی که روی دستگاه‌های بدون WebCrypto ساخته شده‌اند
-  if (config.verifier.startsWith("fb:")) {
-    return safeEqual(simpleFallbackVerifier(password, config.salt), config.verifier) ? true : null;
-  }
-
-  // برخی WebViewهای قدیمی اندروید WebCrypto ندارند؛ در این حالت از هش پشتیبان استفاده می‌شود
-  if (!hasWebCrypto()) {
-    if (config.fbVerifier) {
-      return safeEqual(simpleFallbackVerifier(password, config.salt), config.fbVerifier) ? true : null;
-    }
-    throw new Error(
-      "این نسخه از برنامه با تنظیمات رمز فعلی سازگار نیست. لطفاً نسخه جدید برنامه را نصب کنید."
-    );
+  if (config.verifier.startsWith("fb:") || !hasWebCrypto()) {
+    const expected = config.verifier.startsWith("fb:")
+      ? config.verifier
+      : simpleFallbackVerifier(password, config.salt);
+    return safeEqual(simpleFallbackVerifier(password, config.salt), expected) ? true : null;
   }
 
   const { verifier, key } = await deriveSecret(password, fromB64(config.salt), config.iterations);
@@ -187,7 +193,6 @@ export async function buildConfig(
     salt: toB64(salt),
     iterations: PBKDF2_ITERATIONS,
     verifier,
-    fbVerifier: simpleFallbackVerifier(password, toB64(salt)),
     isDefault: false,
     updatedAt: new Date().toISOString(),
     github: github

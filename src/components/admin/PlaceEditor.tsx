@@ -106,7 +106,7 @@ export default function PlaceEditor({ state, onChange, resolveImage, onPickLocat
   return (
     <div className="fixed inset-0 z-[1250] flex flex-col bg-white animate-sheet-up md:inset-y-0 md:left-auto md:right-0 md:w-[480px] md:animate-panel-in md:shadow-2xl">
       {/* هدر */}
-      <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3 safe-top">
         <button
           onClick={() => {
             if (!confirmCancel) {

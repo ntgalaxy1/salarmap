@@ -69,7 +69,7 @@ export default function LocationPicker({ title, initial, layer, places, excludeI
       </MapContainer>
 
       {/* راهنما */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center p-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center p-3 safe-top">
         <div className="flex items-center gap-2 rounded-2xl bg-slate-900/90 px-4 py-2.5 text-white shadow-xl backdrop-blur animate-pop-in">
           <Crosshair className="h-4 w-4 text-emerald-400" />
           <div>

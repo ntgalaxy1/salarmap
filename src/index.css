@@ -25,6 +25,17 @@
   }
 }
 
+/* ─── فضای امن بالای صفحه (نوار وضعیت اندروید / notch) ───
+   در APK عناصر fixed نسبت به کل صفحه جای می‌گیرند و ممکن است زیر نوار وضعیت بروند.
+   این متغیر هم مقدار واقعی inset را می‌گیرد و هم در صورت صفر بودن (بعضی WebViewها)
+   با JS مقدار دستی تنظیم می‌شود تا هدر هیچ‌وقت زیر نوار وضعیت نرود. */
+:root {
+  --salar-safe-top: env(safe-area-inset-top, 0px);
+}
+.safe-top {
+  padding-top: max(var(--salar-safe-top, 0px), 16px);
+}
+
 @keyframes sheet-up {
   from {
     transform: translateY(100%);

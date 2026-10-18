@@ -16,7 +16,7 @@ export default function PlacesList({ places, selectedId, onPick, onClose }: Prop
     <div className="fixed inset-0 z-[1300]">
       <div className="absolute inset-0 bg-slate-900/40 animate-fade-in" onClick={onClose} />
       <aside className="absolute inset-y-0 right-0 flex w-[88%] max-w-sm flex-col bg-white shadow-2xl animate-panel-in">
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 safe-top">
           <div>
             <h2 className="text-base font-extrabold text-slate-900">مکان‌ها</h2>
             <p className="text-[11px] text-slate-500">{toFa(places.length)} مکان</p>

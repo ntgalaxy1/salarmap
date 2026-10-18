@@ -69,8 +69,6 @@ export interface AdminConfig {
   iterations: number;
   /** هش رمز عبور (PBKDF2) */
   verifier: string;
-  /** هش پشتیبان برای دستگاه‌هایی که WebCrypto ندارند (مثل برخی WebViewهای قدیمی اندروید) */
-  fbVerifier?: string;
   /** هنوز رمز پیش‌فرض است؟ */
   isDefault: boolean;
   updatedAt?: string;
